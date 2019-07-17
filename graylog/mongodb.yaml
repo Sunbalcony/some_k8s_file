@@ -1,0 +1,53 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: mongodb-pvc
+  annotations:
+    pv-name-created: mongodb-pvc
+spec:
+  storageClassName: alicloud-nas-zttl
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: mongo-deploy
+  labels:
+    service: mongo-deploy
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        service: mongo-deploy
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:3
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+           - name: mongodb-data-volume
+             mountPath: /data/db
+      volumes:
+      - name: mongodb-data-volume
+        persistentVolumeClaim:
+            claimName: mongodb-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+spec:
+  selector:
+    service: mongo-deploy
+  ports:
+  - name: "27017"
+    port: 27017
+    targetPort: 27017
+

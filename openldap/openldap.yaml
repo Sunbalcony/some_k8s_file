@@ -1,0 +1,79 @@
+##创建pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: kube-ops
+  name: ldap
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "alicloud-nas-zttl"
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 30Gi
+
+
+## 
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ namespace: kube-ops
+ name: ldap
+ labels:
+   name: ldap
+spec:
+ replicas: 1
+ selector:
+    matchLabels:
+        name: ldap
+ template:
+   metadata:
+     labels: 
+      name: ldap
+   spec:
+     containers:
+     - name: ladp
+       image: osixia/openldap:1.2.4
+       volumeMounts:
+       - mountPath: /var/lib/ldap
+         name: ldapdata
+       - mountPath: /etc/localtime
+         name: host-time
+       - mountPath: /etc/ldap/slapd.d
+         name: ldapdata
+       ports:
+       - containerPort: 389
+       - containerPort: 636
+
+       env:
+       - name: LDAP_DOMAIN
+         value: chinacrt.com
+       - name: LDAP_ADMIN_PASSWORD
+         value: 1q2w3e4R
+     volumes:
+     - name: ldapdata
+       persistentVolumeClaim:
+         claimName: ldap
+     - name: host-time
+       hostPath:
+          path: /etc/localtime
+     
+
+##创建Service
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ldap-svc
+  namespace: kube-ops
+spec:
+  type: NodePort
+  ports:
+  - port: 389
+    protocol: TCP
+    targetPort: 389
+  selector:
+    name: ldap

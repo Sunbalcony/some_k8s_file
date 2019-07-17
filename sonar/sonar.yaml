@@ -1,0 +1,137 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: kube-ops
+  name: postgresql
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "alicloud-nas-zttl"
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+## 部署
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ namespace: kube-ops
+ name: sonar-postgresql
+ labels:
+   name: sonar-postgresql
+spec:
+ replicas: 1
+ selector:
+    matchLabels:
+        name: sonar-postgresql
+ template:
+   metadata:
+     labels: 
+      name: sonar-postgresql
+   spec:
+     containers:
+     - name: sonar-postgresql
+       image: postgres
+       ports:
+       - containerPort: 5432
+       env:
+       - name: POSTGRES_USER
+         value: sonar
+       - name: POSTGRES_PASSWORD
+         value: sonar 
+       - name: POSTGRE_DB
+         value: sonar 
+       volumeMounts:
+        - name: sqldata
+          mountPath: /var/lib/postgresql/data
+     volumes:
+       - name: sqldata
+         persistentVolumeClaim:
+           claimName: postgresql
+
+---
+## 部署
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ namespace: kube-ops
+ name: sonar-web
+ labels:
+   name: sonar-web
+spec:
+ replicas: 1
+ selector:
+    matchLabels:
+        name: sonar-web
+ template:
+   metadata:
+     labels: 
+      name: sonar-web
+   spec:
+     containers:
+     - name: sonar-web
+       image: sonarqube
+       ports:
+       - containerPort: 9000
+       - containerPort: 9092
+       env:
+       - name: SONARQUBE_JDBC_USERNAME
+         value: sonar
+       - name: SONARQUBE_JDBC_PASSWORD
+         value: sonar 
+       - name: SONARQUBE_JDBC_URL
+         value: jdbc:postgresql://sonar-postgresql/sonar 
+         
+     
+---
+---
+apiVersion: v1
+kind: Service
+metadata:
+ namespace: kube-ops
+ name: sonar-postgresql
+ labels: 
+  name: sonar-postgresql
+spec:
+ ports:
+ - port: 5432
+   protocol: TCP
+   targetPort: 5432
+   name: http
+ selector:
+   name: sonar-postgresql
+
+##创建Service
+---
+apiVersion: v1
+kind: Service
+metadata:
+ namespace: kube-ops
+ name: sonar-web
+ labels: 
+  name: sonar-web
+spec:
+ ports:
+ - port: 9000
+   protocol: TCP
+   name: sonar-web
+ selector:
+   name: sonar-web
+
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: sonar
+  namespace: kube-ops
+spec:
+  rules:
+  - host: sonar.dev.chinacrt.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: sonar-web
+          servicePort: 9000

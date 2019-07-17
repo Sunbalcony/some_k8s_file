@@ -1,0 +1,63 @@
+## 
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ namespace: kube-ops
+ name: ldap-web
+ labels:
+   name: ldap-web
+spec:
+ replicas: 1
+ selector:
+    matchLabels:
+        name: ldap-web
+ template:
+   metadata:
+     labels: 
+      name: ldap-web
+   spec:
+     containers:
+     - name: ladp-web
+       image: osixia/phpldapadmin:0.8.0
+       ports:
+       - containerPort: 443
+       env:
+       - name: PHPLDAPADMIN_LDAP_HOSTS
+         value: ldap-svc
+     volumes:
+     - name: host-time
+       hostPath:
+          path: /etc/localtime
+     
+
+##创建Service
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ldap-web
+  namespace: kube-ops
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    name: ldap-web
+
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ldap-web
+  namespace: kube-ops
+spec:
+  rules:
+  - host: ldapui.dev.chinacrt.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: ldap-web
+          servicePort: 443

@@ -1,0 +1,95 @@
+##创建pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: kube-ops
+  name: nexus3
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "alicloud-nas-zttl"
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+
+
+## nexus3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ namespace: kube-ops
+ name: nexus3
+ labels:
+   name: nexus3
+spec:
+ replicas: 1
+ selector:
+    matchLabels:
+        name: nexus3
+ template:
+   metadata:
+     labels: 
+      name: nexus3
+   spec:
+     initContainers:
+     - name: permissionsfix
+       image: alpine:latest
+       command: ["/bin/sh", "-c"]
+       args:
+       - chown 200:200 /nexus-data
+       volumeMounts:
+       - name: nexus3-home
+         mountPath: /nexus-data
+     containers:
+     - name: nexus3
+       image: sonatype/nexus3:3.14.0
+       volumeMounts:
+       - mountPath: /nexus-data
+         name: nexus3-home
+       - mountPath: /etc/localtime
+         name: host-time
+       ports:
+       - containerPort: 8081
+       
+     volumes:
+     - name: nexus3-home
+       persistentVolumeClaim:
+         claimName: nexus3
+     - name: host-time
+       hostPath:
+          path: /etc/localtime
+     
+
+##创建Service
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexus3
+  namespace: kube-ops
+spec:
+  ports:
+  - port: 8081
+    protocol: TCP
+    targetPort: 8081
+  selector:
+    name: nexus3
+
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: nexus3
+  namespace: kube-ops
+spec:
+  rules:
+  - host: nexus.dev.chinacrt.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: nexus3
+          servicePort: 8081

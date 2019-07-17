@@ -1,0 +1,86 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: kube-ops
+  name: openvpn
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "alicloud-nas-zttl"
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ namespace: kube-ops
+ name: openvpn
+ labels:
+   name: openvpn
+spec:
+ replicas: 1
+ selector:
+    matchLabels:
+        name: openvpn
+ template:
+   metadata:
+     labels:
+      name: openvpn
+   spec:
+     containers:
+     - name: openvpn
+       image: wheelybird/openvpn-ldap-otp
+       securityContext:
+         capabilities:
+           add:
+           - NET_ADMIN
+       volumeMounts:
+       - mountPath: /etc/openvpn/
+         name: vpnconf
+       ports:
+       - containerPort: 1194
+       env:
+       - name: OVPN_SERVER_CN
+         value: vpn.crt.e6gpshk.com
+       - name: LDAP_URI
+         value: ldap://ldap-svc:389
+       - name: LDAP_BASE_DN
+         value: dc=chinacrt,dc=com
+       - name: LDAP_BIND_USER_DN
+         value: cn=admin,dc=chinacrt,dc=com
+       - name: LDAP_BIND_USER_PASS
+         value: 1q2w3e4R
+       - name: OVPN_PROTOCOL
+         value: udp
+       - name: OVPN_ROUTES
+         value: 172.17.0.0 255.255.0.0
+       - name: LDAP_LOGIN_ATTRIBUTE
+         value: cn
+#       - name: ENABLE_OTP
+#         value: 'true'
+
+     volumes:
+     - name: vpnconf
+       persistentVolumeClaim:
+         claimName: openvpn
+---
+apiVersion: v1
+kind: Service
+metadata:
+ namespace: kube-ops
+ name: openvpn
+ labels:
+  name: openvpn
+spec:
+ type: NodePort
+ ports:
+ - port: 1194
+   protocol: UDP
+   targetPort: 1194
+   nodePort: 31194
+   name: tcp1194
+ selector:
+   name: openvpn
